@@ -10,9 +10,9 @@ from PIL import Image
 import io
 import numpy as np
 import base64
-from moviepy.editor import VideoFileClip
 import tempfile
 import uuid
+import imageio.v2 as imageio
 
 app = Flask(__name__)
 model = YOLO("data/model/best.pt")
@@ -242,7 +242,6 @@ def upload_video():
     clip_limit = float(request.form.get('clip', 2.0))
     tile_size = int(request.form.get('tile', 8))
 
-    # Buat folder jika belum ada
     os.makedirs("static/uploads", exist_ok=True)
     os.makedirs("static/results", exist_ok=True)
 
@@ -254,10 +253,13 @@ def upload_video():
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = cap.get(cv2.CAP_PROP_FPS)
+    if fps == 0 or fps is None or np.isnan(fps):
+        fps = 25
 
     output_filename = f"static/results/result_{int(time.time())}.mp4"
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(output_filename, fourcc, fps, (w, h))
+
+    # 👇 Buat writer dengan H.264 codec
+    writer = imageio.get_writer(output_filename, fps=fps, codec='libx264')
 
     clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=(tile_size, tile_size))
 
@@ -266,27 +268,26 @@ def upload_video():
         if not ret:
             break
 
+        # Apply CLAHE
         lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
         l, a, b = cv2.split(lab)
         cl = clahe.apply(l)
         enhanced = cv2.merge((cl, a, b))
         enhanced = cv2.cvtColor(enhanced, cv2.COLOR_LAB2BGR)
 
+        # YOLOv8
         results = model.predict(enhanced, imgsz=640, conf=0.25, verbose=False)
         annotated = results[0].plot()
-        out.write(annotated)
+
+        # 👇 Simpan ke video (RGB harus dipakai di imageio)
+        writer.append_data(cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB))
 
     cap.release()
-    out.release()
+    writer.close()
 
-    final_output = output_filename.replace(".mp4", "_final.mp4")
-    clip = VideoFileClip(output_filename)
-    clip.write_videofile(final_output, codec="libx264", audio=False)
-
-    # Kirim yang final ke HTML
     return render_template("input_record.html",
-                        original_video=original_path.split("static/")[1],
-                        predicted_video=final_output.split("static/")[1])
+                           original_video=original_path.split("static/")[1],
+                           predicted_video=output_filename.split("static/")[1])
 # === MAIN ===
 if __name__ == '__main__':
     initialize_streams()
