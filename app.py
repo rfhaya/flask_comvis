@@ -290,5 +290,6 @@ def upload_video():
                            predicted_video=output_filename.split("static/")[1])
 # === MAIN ===
 if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 5000))
     initialize_streams()
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=port)
