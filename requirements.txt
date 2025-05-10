@@ -1,18 +1,6 @@
-# Web framework
 flask
-
-# Object detection
 ultralytics
-
-# Image & video processing
 opencv-python-headless
-moviepy
-imageio
-imageio_ffmpeg
-
-# Supporting libraries
 Pillow
 numpy
-
-# Production server
 gunicorn
