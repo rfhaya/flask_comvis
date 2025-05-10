@@ -107,13 +107,6 @@ def stream_reader(camera_id, url):
             camera_streams[camera_id]["frame"] = frame.copy()
         time.sleep(0.03)
 
-def initialize_streams():
-    for cam_id, url in camera_configs.items():
-        camera_streams[cam_id] = {"frame": None, "lock": threading.Lock()}
-        t = threading.Thread(target=stream_reader, args=(cam_id, url), daemon=True)
-        t.start()
-        camera_streams[cam_id]["thread"] = t
-
 def generate_frames(camera_id, apply_clahe=False, clip_limit=2.0, tile_size=8):
     frame_count = 0
     FRAME_SKIP = 2
@@ -182,7 +175,12 @@ def camera_view(camera_id):
 
 @app.route('/video_feed/<camera_id>')
 def video_feed(camera_id):
-    return Response(generate_frames(camera_id, apply_clahe=False), mimetype='multipart/x-mixed-replace; boundary=frame')
+    if camera_id not in camera_streams:
+        camera_streams[camera_id] = {"frame": None, "lock": threading.Lock()}
+        t = threading.Thread(target=stream_reader, args=(camera_id, camera_configs[camera_id]), daemon=True)
+        t.start()
+        camera_streams[camera_id]["thread"] = t
+    return Response(generate_frames(camera_id), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/video_feed_clahe/<camera_id>')
 def video_feed_clahe(camera_id):
@@ -291,5 +289,4 @@ def upload_video():
 # === MAIN ===
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
-    initialize_streams()
     app.run(host="0.0.0.0", port=port)
