@@ -1,0 +1,6 @@
+flask
+ultralytics
+opencv-python-headless
+moviepy
+Pillow
+numpy
